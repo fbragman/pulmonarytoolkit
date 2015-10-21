@@ -856,6 +856,19 @@ classdef (ConstructOnLoad = true) PTKImage < handle
             obj.RawImage = uint8(morph_function_handle(obj.RawImage, ball_element));
             obj.NotifyImageChanged;
         end
+        
+        % Performs a GPU Matlab morphological operation using a spherical
+        % element of the specified size in mm, adjusting for the voxel size
+        function MorthWithGPU(obj, morph_function_handle, size_mm)
+            % Create structural element as a ball shape
+            ball_element = obj.CreateBallStructuralElement(size_mm);
+            
+            RawImage_gpu = gpuArray(obj.RawImage);
+            
+            gpu_res = uint8(morph_function_handle(RawImage_gpu, ball_element));
+            obj.RawImage = gpu_res;
+            obj.NotifyImageChanged;
+        end
 
         % Performs a Matlab morphological operation using s apherical element of
         % the specified size in mm, adjusting for the voxel size
@@ -868,7 +881,7 @@ classdef (ConstructOnLoad = true) PTKImage < handle
             obj.NotifyImageChanged;
         end
         
-        % Performs a Matlab morphological operation on the GPU using a
+        % Performs a GPU Matlab morphological operation using a
         % spherical element of the specified size in mm, adjusting for the
         % voxel size
         function BinaryMorphWithGPU(obj, morph_function_handle, size_mm)
@@ -903,6 +916,7 @@ classdef (ConstructOnLoad = true) PTKImage < handle
             obj.NotifyImageChanged;
         end
         
+        % Performs a GPU Matlab morphological operation as above, but first adds an additional boder to the image
         function MorphWithBorderWithGPU(obj, morph_function_handle, size_mm)
             % Create structural element as a ball shape
             ball_element = obj.CreateBallStructuralElement(size_mm);
@@ -1221,6 +1235,12 @@ classdef (ConstructOnLoad = true) PTKImage < handle
         
         function ball_element = CreateBallStructuralElement(obj, size_mm)
             ball_element = PTKImageUtilities.CreateBallStructuralElement(obj.VoxelSize, size_mm);
+        end
+        
+        function disk_element = CreateDiskStructuralElement(obj, size_mm)
+            
+            disk_element = PTKImageUtilities.CreateDiskStructuralElement(obj.VoxelSize, size_mm);
+            
         end
         
         % Guesses which type of image renderng would be best. 
