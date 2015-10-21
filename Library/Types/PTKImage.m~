@@ -875,16 +875,11 @@ classdef (ConstructOnLoad = true) PTKImage < handle
             % Create structural element as a ball shape
             ball_element = obj.CreateBallStructuralElement(size_mm);            
             
-            obj.RawImage = obj.RawImage > 0;
             
-            % Convert RawImage to gpuArray
-            RawImage_gpu = gpuArray(obj.RawImage);
             
-            gpu_res = logical(morph_function_handle(RawImage_gpu, ball_element));
             
-            % Gather gpuArray
-            obj.RawImage = gather(gpu_res);
-            obj.NotifyImageChanged;
+            
+            
         end
 
         % Performs a Matlab morphological operation as above, but first adds an additional boder to the image
@@ -901,27 +896,6 @@ classdef (ConstructOnLoad = true) PTKImage < handle
             morphed_image = uint8(morph_function_handle(morphed_image, ball_element));
             obj.RawImage = uint8(morphed_image(start_pos(1):end_pos(1), start_pos(2):end_pos(2), start_pos(3):end_pos(3)));
             obj.NotifyImageChanged;
-        end
-        
-        function MorphWithBorderWithGPU(obj, morph_function_handle, size_mm)
-            % Create structural element as a ball shape
-            ball_element = obj.CreateBallStructuralElement(size_mm);
-            borders = size(ball_element);
-            image_size_with_borders = obj.ImageSize + 2*borders;
-            morphed_image = false(image_size_with_borders);
-            start_pos = borders + 1;
-            end_pos = image_size_with_borders - borders;
-            morphed_image(start_pos(1):end_pos(1), start_pos(2):end_pos(2), start_pos(3):end_pos(3)) = obj.RawImage > 0;
-            
-            % Convert image to gpuArray
-            morphed_image_gpu = gpuArray(morphed_image);
-            
-            gpu_res = uint8(morph_function_handle(morphed_image_gpu, ball_element));
-            
-            morphed_image = gather(gpu_res);
-            
-            obj.RawImage = uint8(morphed_image(start_pos(1):end_pos(1), start_pos(2):end_pos(2), start_pos(3):end_pos(3)));
-            obj.NotifyImageChanged;            
         end
         
         function GeneratePreview(obj, preview_size, flatten_before_preview)

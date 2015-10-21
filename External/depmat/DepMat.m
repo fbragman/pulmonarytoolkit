@@ -87,10 +87,10 @@ classdef DepMat
             % Matlab's curl configuration doesn't include https so git will not work.
             % We need to add the system curl configuration directory earlier in the
             % path so that it picks up this one instead of Matlab's
-            currentLibPath = getenv('DYLD_LIBRARY_PATH');
+            currentLibPath = getenv('LD_LIBRARY_PATH');
             binDir = '/usr/lib';
             if (7 == exist(binDir, 'dir')) && ~strcmp(currentLibPath(1:length(binDir) + 1), [binDir ':'])
-                setenv('DYLD_LIBRARY_PATH', [binDir ':' currentLibPath]);
+                setenv('LD_LIBRARY_PATH', [binDir ':' currentLibPath]);
             end
         end
     end

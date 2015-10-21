@@ -56,9 +56,9 @@ classdef PTK_GPULeftAndRightLungs < PTKPlugin
                     reporting.ShowProgress('GPU accelerated lung segmentation');
                     results = dataset.GetResult('PTK_GPULeftAndRightLungsInitialiser');
                 else
-                    reporting.ShowMessage('No GPU device found, Consider using PTKLeftAndRightLungs');
-                end
-                
+                    reporting.Error('PTKLungMask:InvalidContext',...
+                                    'PTKLungMask can only be called with the LeftLung or RightLung context');
+
             end
         end
     end
