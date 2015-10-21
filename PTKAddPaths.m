@@ -38,6 +38,7 @@ function PTKAddPaths(varargin)
         path_folders{end + 1} = fullfile('Library', 'Dicom');
         path_folders{end + 1} = fullfile('Library', 'File');
         path_folders{end + 1} = fullfile('Library', 'GuiComponents');
+        path_folders{end + 1} = fullfile('Library', 'GPU');
         path_folders{end + 1} = fullfile('Library', 'Interfaces');
         path_folders{end + 1} = fullfile('Library', 'Lobes');
         path_folders{end + 1} = fullfile('Library', 'Lungs');
