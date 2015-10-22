@@ -25,7 +25,7 @@ classdef PTK_GPULungMaskForRegistration < PTKPlugin
         ToolTip = ''
         Category = 'GPU'
         AllowResultsToBeCached = true
-        AlwaysRunPlugin = false
+        AlwaysRunPlugin = true
         PluginType = 'ReplaceOverlay'
         HidePluginInDisplay = false
         FlattenPreviewImage = false
@@ -40,20 +40,33 @@ classdef PTK_GPULungMaskForRegistration < PTKPlugin
     methods (Static)
         
         function results = RunPlugin(dataset, context, reporting)
-            results = dataset.GetResult('PTKLeftAndRightLungs', PTKContext.LungROI);
-            region = dataset.GetResult('PTKLungRegion', context);
-            results.ResizeToMatch(region);
-            if context == PTKContext.LeftLung
-                lung_colour = 2;
-            elseif context == PTKContext.RightLung
-                lung_colour = 1;
+            
+            numDevice = gpuDeviceCount;
+            
+            if numDevice > 0
+            
+                results = dataset.GetResult('PTK_GPULeftAndRightLungs', PTKContext.LungROI);
+                region = dataset.GetResult('PTKLungRegion', context);
+                results.ResizeToMatch(region);
+                if context == PTKContext.LeftLung
+                    lung_colour = 2;
+                elseif context == PTKContext.RightLung
+                    lung_colour = 1;
+                else
+                    reporting.Error('PTKLungMask:InvalidContext', 'PTKLungMask can only be called with the LeftLung or RightLung context');
+                end
+                results.ChangeRawImage(results.RawImage == lung_colour);
+                results.AddBorder(10);
+                results = PTK_GPUFillCoronalHoles(results, [], reporting);
+                results.RemoveBorder(10);
+            
             else
-                reporting.Error('PTKLungMask:InvalidContext', 'PTKLungMask can only be called with the LeftLung or RightLung context');
+                
+                reporting.ShowMessage('No GPU device found, Consider using PTKLungMaskForRegistration');
+                
             end
-            results.ChangeRawImage(results.RawImage == lung_colour);
-            results.AddBorder(10);
-            results = PTKFillCoronalHoles(results, [], reporting);
-            results.RemoveBorder(10);
+            
+            
         end 
     end    
 end

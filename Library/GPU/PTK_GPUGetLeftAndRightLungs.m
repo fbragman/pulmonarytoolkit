@@ -47,7 +47,7 @@ function results = PTK_GPUGetLeftAndRightLungs(unclosed_lungs, filtered_threshol
     left_lung.CropToFit;
     
     % Perform morphological closing with a spherical structure element
-    left_lung.MorphWithBorder(@imclose, close_size);
+    left_lung.MorphWithBorderWithGPU(@imclose, close_size);
     % Fill any remaining holes inside the 3D image
     left_lung = PTKFillHolesInImage(left_lung);
     
