@@ -1,4 +1,4 @@
-function eigval = PTK_GPUVectorisedEigenvalues(M)
+function [eigval,eigvec] = PTK_GPUVectorisedEigenvalues(M,compute_vec)
     % PTK_GPUVectorisedEigenvalues. Computes eigenvalues and eigenvectors 
     %                               for many symmetric matrices on the GPU
     %
@@ -39,45 +39,106 @@ function eigval = PTK_GPUVectorisedEigenvalues(M)
     %     Distributed under the GNU GPL v3 licence. Please see website for details.
     %
     
-    M1 = gpuArray(M(1,:));
-    M2 = gpuArray(M(2,:));
-    M3 = gpuArray(M(3,:));
-    M4 = gpuArray(M(4,:));
-    M5 = gpuArray(M(5,:));
-    M6 = gpuArray(M(6,:));
+    if isa(M,'gpuArray')    
+        M1 = M(1,:);
+        M2 = M(2,:);
+        M3 = M(3,:);
+        M4 = M(4,:);
+        M5 = M(5,:);
+        M6 = M(6,:);
+        clear M;
+    else   
+        M1 = gpuArray(M(1,:));
+        M2 = gpuArray(M(2,:));
+        M3 = gpuArray(M(3,:));
+        M4 = gpuArray(M(4,:));
+        M5 = gpuArray(M(5,:));
+        M6 = gpuArray(M(6,:));
+        clear M;
+    end
     
-    eigval = gather(inner_calculate(M1,M2,M3,M4,M5,M6));
+    [eigval,eigvec] = inner_calculate(M1,M2,M3,M4,M5,M6,compute_vec);
+    clear M1 M2 M3 M4 M5 M6
+    eigval = gather(eigval);
+    if ~isempty(eigvec)
+        v1 = gather(eigvec{1});
+        v2 = gather(eigvec{2});
+        v3 = gather(eigvec{3});
+        clear eigvec;
+        eigvec = permute(squeeze(cat(4,v1,v2,v3)),[1 3 2]);
+    end
 end
 
-function eigval_out = inner_calculate(M1,M2,M3,M4,M5,M6)
+function [eigval_out,eigvec_out] = inner_calculate(M1,M2,M3,M4,M5,M6,compute_vec)
 %%  GPU function to calculate eigenvalues
 
 numvoxels = size(M1, 2);
-eigval = zeros(3, numvoxels, 'single','gpuArray');
+eigval = zeros(3, numvoxels,'single','gpuArray');
 
 m = (M1 + M4 + M6)/3;
 
-q =  (( M1 - m) .* (M4 - m) .* (M6 - m) + ...
-    2 * M2 .* M5 .* M3 - ...
-    M3.^2 .* (M4 - m) - ...
-    M5.^2 .* (M1 - m) - M2.^2 .* (M6 - m) )/2;
+q = ( (M1-m).*(M4-m).*(M6-m) + ...
+              2*M2 .* M5.*M3 - ...
+            M3.*M3 .* (M4-m) - ...
+      M5.*M5.*(M1-m) - M2.*M2.*(M6-m) )/2;
 
-p = ( ( M1 - m ).^2 + 2 * M2.^2 + 2 * M3.^2 + ...
-    ( M4 - m ).^2 + 2 * M5.^2 + ( M6 - m ).^2 )/6;
+p = ( (M1-m).*(M1-m) + 2 * M2.*M2 + 2 * M3.*M3 + ...
+      (M4-m).*(M4-m) + 2 * M5.*M5 + (M6-m).*(M6-m) )/6;
 
-p = max(0.01, p);
+p = max(0.01,p);
 
 phi     = 1/3*acos(complex(q./p.^(3/2)));
-phi_idx = phi<0;
-phi(phi_idx) = phi(phi_idx) + pi/3;
+phi(phi<0) = phi(phi<0) + pi/3;
 
-% phi(phi<0) = phi(phi<0) + pi/3;
+sqr3 = sqrt(3);
 
 eigval(1,:) = abs(m + 2*sqrt(p).*cos(phi));
-eigval(2,:) = abs(m - sqrt(p).*(cos(phi) + sqrt(3).*sin(phi)));
-eigval(3,:) = abs(m - sqrt(p).*(cos(phi) - sqrt(3).*sin(phi)));
+eigval(2,:) = abs(m - sqrt(p).*(cos(phi) + sqr3.*sin(phi)));
+eigval(3,:) = abs(m - sqrt(p).*(cos(phi) - sqr3.*sin(phi)));
 
-[~, i] = sort(abs(eigval));
+[~, i] = sort(eigval);
 i = i + size(eigval,1)*ones(size(eigval,1), 1)*(0:size(eigval, 2) - 1);
+
+% Clear GPU variables
+clear p q m phi
+
+if compute_vec
+    
+    eigvec_out = cell(1,3);
+    
+    for l = 1 : 2
+        Ai = M1 - eigval(l,:);
+        Bi = M4 - eigval(l,:);
+        Ci = M6 - eigval(l,:);
+        
+        eix = ( M2.*M5 - Bi.*M3 ) .* (M3 .*M5 - Ci.*M2 );
+        eiy = ( M3.*M5 - Ci.*M2 ) .* (M3 .*M2 - Ai.*M5 );
+        eiz = ( M2.*M5 - Bi.*M3 ) .* (M3 .*M2 - Ai.*M5 );
+        
+        vec = sqrt(eix.*eix + eiy.*eiy + eiz.*eiz);      
+        vec = max(0.01,vec);
+        eigvec_out{l} = [eix; eiy; eiz] ./ vec([1;1;1], :);
+    end
+
+eigvec_out{3} = cross_product(eigvec_out{1},eigvec_out{2});
 eigval_out = eigval(i);
+    
+else
+    
+    eigvec_out = [];
+    
+end
+end
+
+function out = cross_product(vec1,vec2)
+%%  Quicker GPU cross product
+
+out = [ vec1(2,:).*vec2(3,:) - vec1(3,:).*vec2(2,:); ...
+        vec1(3,:).*vec2(1,:) - vec1(1,:).*vec2(3,:); ...
+        vec1(1,:).*vec2(2,:) - vec1(2,:).*vec2(1,:); ];
+
+% out      = vec1(2,:).*vec2(3,:) - vec1(3,:).*vec2(2,:);
+% out(2,:) = vec1(3,:).*vec2(1,:) - vec1(1,:).*vec2(3,:);
+% out(3,:) = vec1(1,:).*vec2(2,:) - vec1(2,:).*vec2(1,:);
+
 end
