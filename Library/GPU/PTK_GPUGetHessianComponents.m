@@ -1,4 +1,4 @@
-function hessian_components = PTKGetHessianComponents(image_data, mask)
+function hessian_components = PTK_GPUGetHessianComponents(image_data, mask)
     % PTKGetHessianComponents. Computes the Hessian matrices for an image
     %
     %     PTKGetHessianComponents computes the components of the Hessian matrix
