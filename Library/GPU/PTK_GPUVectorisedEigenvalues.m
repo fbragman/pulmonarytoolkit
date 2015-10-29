@@ -57,19 +57,22 @@ function [eigval,eigvec] = PTK_GPUVectorisedEigenvalues(M,compute_vec)
         clear M;
     end
     
-    [eigval,eigvec] = inner_calculate(M1,M2,M3,M4,M5,M6,compute_vec);
+    [eigval,tmp_eigvec] = inner_calculate(M1,M2,M3,M4,M5,M6,compute_vec);
     clear M1 M2 M3 M4 M5 M6
     eigval = gather(eigval);
-    if ~isempty(eigvec)
-        v1 = gather(eigvec{1});
-        v2 = gather(eigvec{2});
-        v3 = gather(eigvec{3});
+    if ~isempty(tmp_eigvec)
+        v1 = gather(tmp_eigvec{1});
+        v2 = gather(tmp_eigvec{2});
+        v3 = gather(tmp_eigvec{3});
         clear eigvec;
-        eigvec = permute(squeeze(cat(4,v1,v2,v3)),[1 3 2]);
+        eigvec = zeros(3,3,size(eigval,2),'single');
+        eigvec(:,1,:) = v1;
+        eigvec(:,2,:) = v2;
+        eigvec(:,3,:) = v3; 
     end
 end
 
-function [eigval_out,eigvec_out] = inner_calculate(M1,M2,M3,M4,M5,M6,compute_vec)
+function [eigval,eigvec] = inner_calculate(M1,M2,M3,M4,M5,M6,compute_vec)
 %%  GPU function to calculate eigenvalues
 
 numvoxels = size(M1, 2);
@@ -87,24 +90,24 @@ p = ( (M1-m).*(M1-m) + 2 * M2.*M2 + 2 * M3.*M3 + ...
 
 p = max(0.01,p);
 
-phi     = 1/3*acos(complex(q./p.^(3/2)));
+phi     = 1/3*acos(q./p.^(3/2));
 phi(phi<0) = phi(phi<0) + pi/3;
 
 sqr3 = sqrt(3);
 
-eigval(1,:) = abs(m + 2*sqrt(p).*cos(phi));
-eigval(2,:) = abs(m - sqrt(p).*(cos(phi) + sqr3.*sin(phi)));
-eigval(3,:) = abs(m - sqrt(p).*(cos(phi) - sqr3.*sin(phi)));
+eigval(1,:) = m + 2*sqrt(p).*cos(phi);
+eigval(2,:) = m - sqrt(p).*(cos(phi) + sqr3.*sin(phi));
+eigval(3,:) = m - sqrt(p).*(cos(phi) - sqr3.*sin(phi));
 
-[~, i] = sort(eigval);
+[~, i] = sort(abs(eigval));
 i = i + size(eigval,1)*ones(size(eigval,1), 1)*(0:size(eigval, 2) - 1);
-
+eigval = eigval(i);
 % Clear GPU variables
 clear p q m phi
 
 if compute_vec
     
-    eigvec_out = cell(1,3);
+    eigvec = cell(1,3);
     
     for l = 1 : 2
         Ai = M1 - eigval(l,:);
@@ -117,17 +120,17 @@ if compute_vec
         
         vec = sqrt(eix.*eix + eiy.*eiy + eiz.*eiz);      
         vec = max(0.01,vec);
-        eigvec_out{l} = [eix; eiy; eiz] ./ vec([1;1;1], :);
+        eigvec{l} = [eix; eiy; eiz] ./ vec([1;1;1], :);
     end
 
-eigvec_out{3} = cross_product(eigvec_out{1},eigvec_out{2});
-eigval_out = eigval(i);
+eigvec{3} = cross_product(eigvec{1},eigvec{2});
     
 else
     
-    eigvec_out = [];
+    eigvec = [];
     
 end
+
 end
 
 function out = cross_product(vec1,vec2)
